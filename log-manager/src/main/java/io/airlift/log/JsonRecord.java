@@ -3,6 +3,7 @@ package io.airlift.log;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -18,6 +19,7 @@ public class JsonRecord
     private final String loggerName;
     private final String message;
     private final Throwable throwable;
+    private final ImmutableMap<String, String> systemContext;
 
     @JsonCreator
     public JsonRecord(
@@ -26,7 +28,8 @@ public class JsonRecord
             @JsonProperty("thread") String thread,
             @JsonProperty("logger") String loggerName,
             @JsonProperty("message") String message,
-            Throwable throwable)
+            Throwable throwable,
+            ImmutableMap<String, String> systemContext)
     {
         this.timestamp = requireNonNull(timestamp);
         this.level = requireNonNull(level);
@@ -34,6 +37,7 @@ public class JsonRecord
         this.loggerName = loggerName;
         this.message = message;
         this.throwable = throwable;
+        this.systemContext = systemContext;
     }
 
     @JsonProperty
@@ -91,6 +95,12 @@ public class JsonRecord
             return null;
         }
         return Throwables.getStackTraceAsString(throwable);
+    }
+
+    @JsonProperty
+    public ImmutableMap<String, String> getSystemContext()
+    {
+        return systemContext;
     }
 
     @Override

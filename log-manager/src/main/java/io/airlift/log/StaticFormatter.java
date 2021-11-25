@@ -1,5 +1,8 @@
 package io.airlift.log;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableMap;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
@@ -9,8 +12,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
 import java.util.Locale;
-import java.util.logging.Formatter;
+import java.util.Map;
 import java.util.logging.LogRecord;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
@@ -42,6 +46,37 @@ class StaticFormatter
             .appendValue(MILLI_OF_SECOND, 3)
             .appendOffset("+HHMM", "Z")
             .toFormatter(Locale.US);
+
+    public StaticFormatter()
+    {
+        super(ImmutableMap.of());
+    }
+
+    StaticFormatter(Map<String, String> systemContext)
+    {
+        super(systemContext);
+    }
+
+    @Override
+    public String getSystemContextSummary()
+    {
+        return new StringWriter()
+                .append(TIMESTAMP_FORMATTER.format(ZonedDateTime.now()))
+                .append('\t')
+                .append(Level.DEBUG.name())
+                .append('\t')
+                .append(Thread.currentThread().getName())
+                .append('\t')
+                .append(this.getClass().getCanonicalName())
+                .append('\t')
+                .append("System Context Summary")
+                .append("\t")
+                .append(Joiner.on(",").join(getSystemContext().entrySet().stream()
+                        .map(entry -> entry.getKey() + "=" + entry.getValue())
+                        .collect(Collectors.toList())))
+                .append("\n")
+                .toString();
+    }
 
     @Override
     @SuppressWarnings("NonSynchronizedMethodOverridesSynchronizedMethod")

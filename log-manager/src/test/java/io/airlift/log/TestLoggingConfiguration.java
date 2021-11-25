@@ -39,7 +39,8 @@ public class TestLoggingConfiguration
                 .setMaxHistory(30)
                 .setLevelsFile(null)
                 .setFormat(Format.TEXT)
-                .setLegacyLoggerImplementationEnabled(false));
+                .setLegacyLoggerImplementationEnabled(false)
+                .setAdditionalFieldsFile(null));
     }
 
     @Test
@@ -55,6 +56,7 @@ public class TestLoggingConfiguration
                 .put("log.levels-file", "/tmp/levels.txt")
                 .put("log.format", "json")
                 .put("log.legacy-implementation.enabled", "true")
+                .put("log.additional-fields-file", "fields.properties")
                 .build();
 
         LoggingConfiguration expected = new LoggingConfiguration()
@@ -66,7 +68,8 @@ public class TestLoggingConfiguration
                 .setMaxHistory(3)
                 .setLevelsFile("/tmp/levels.txt")
                 .setFormat(Format.JSON)
-                .setLegacyLoggerImplementationEnabled(true);
+                .setLegacyLoggerImplementationEnabled(true)
+                .setAdditionalFieldsFile("fields.properties");
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }

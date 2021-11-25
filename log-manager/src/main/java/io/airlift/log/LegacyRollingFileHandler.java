@@ -38,9 +38,9 @@ final class LegacyRollingFileHandler
 
     private final AsyncAppenderBase<String> asyncAppender;
 
-    public LegacyRollingFileHandler(String filename, int maxHistory, long maxSizeInBytes, Format format)
+    public LegacyRollingFileHandler(String filename, int maxHistory, long maxSizeInBytes, Formatter formatter)
     {
-        setFormatter(format.getFormatter());
+        setFormatter(formatter);
 
         ContextBase context = new ContextBase();
 

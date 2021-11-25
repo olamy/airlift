@@ -1,5 +1,6 @@
 package io.airlift.log;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.HostAndPort;
 import org.testng.annotations.Test;
@@ -29,7 +30,7 @@ public class TestSocketHandler
 
         try (ServerSocket serverSocket = new ServerSocket(0)) {
             Executors.newSingleThreadExecutor().submit(() -> {
-                BufferedHandler handler = createSocketHandler(HostAndPort.fromParts("localhost", serverSocket.getLocalPort()), TEXT.getFormatter());
+                BufferedHandler handler = createSocketHandler(HostAndPort.fromParts("localhost", serverSocket.getLocalPort()), TEXT.createFormatter(ImmutableMap.of()));
                 for (int i = 0; i < data.length; i++) {
                     handler.publish(new LogRecord(levels[i], data[i]));
                 }
@@ -58,7 +59,7 @@ public class TestSocketHandler
         int unallocatedPort = serverSocket.getLocalPort();
         serverSocket.close();
 
-        BufferedHandler handler = createSocketHandler(HostAndPort.fromParts("localhost", unallocatedPort), TEXT.getFormatter());
+        BufferedHandler handler = createSocketHandler(HostAndPort.fromParts("localhost", unallocatedPort), TEXT.createFormatter(ImmutableMap.of()));
         handler.publish(new LogRecord(Level.SEVERE, "rutabaga"));
         handler.flush();
         handler.close();

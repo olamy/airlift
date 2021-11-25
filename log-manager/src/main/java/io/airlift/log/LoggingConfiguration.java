@@ -37,6 +37,7 @@ public class LoggingConfiguration
     private CompressionType compression = CompressionType.GZIP;
     private int maxHistory = 30;
     private String levelsFile;
+    private String additionalFieldsFile;
     private Format format = Format.TEXT;
     private boolean legacyLoggerImplementationEnabled;
 
@@ -153,6 +154,18 @@ public class LoggingConfiguration
     public LoggingConfiguration setLegacyLoggerImplementationEnabled(boolean enabled)
     {
         this.legacyLoggerImplementationEnabled = enabled;
+        return this;
+    }
+
+    public String getAdditionalFieldsFile()
+    {
+        return additionalFieldsFile;
+    }
+
+    @Config("log.additional-fields-file")
+    public LoggingConfiguration setAdditionalFieldsFile(String additionalFieldsFile)
+    {
+        this.additionalFieldsFile = additionalFieldsFile;
         return this;
     }
 }

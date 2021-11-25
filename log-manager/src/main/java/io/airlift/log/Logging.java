@@ -15,7 +15,10 @@
  */
 package io.airlift.log;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.Maps;
 import com.google.common.net.HostAndPort;
 import io.airlift.log.RollingFileMessageOutput.CompressionType;
 import io.airlift.units.DataSize;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -35,10 +39,14 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Handler;
 import java.util.logging.LogManager;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.google.common.collect.Maps.fromProperties;
 import static io.airlift.log.RollingFileMessageOutput.createRollingFileHandler;
 import static io.airlift.log.SocketMessageOutput.createSocketHandler;
+import static java.lang.String.format;
+import static java.util.regex.Matcher.quoteReplacement;
 
 /**
  * Initializes the logging subsystem.
@@ -52,6 +60,8 @@ public class Logging
     private static final Logger log = Logger.get(Logging.class);
     private static final String ROOT_LOGGER_NAME = "";
     private static final java.util.logging.Logger ROOT = java.util.logging.Logger.getLogger("");
+    private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{ENV:([a-zA-Z][a-zA-Z0-9_]*)}");
+
     private static Logging instance;
 
     // hard reference to loggers for which we set the level
@@ -110,27 +120,27 @@ public class Logging
         consoleHandler = null;
     }
 
-    public void logToFile(boolean legacyLoggerImplementation, String logPath, int maxHistory, DataSize maxFileSize, DataSize maxTotalSize, CompressionType compressionType, Format format)
+    public void logToFile(boolean legacyLoggerImplementation, String logPath, int maxHistory, DataSize maxFileSize, DataSize maxTotalSize, CompressionType compressionType, Formatter formatter)
     {
         log.info("Logging to %s", logPath);
 
         Handler handler;
         if (legacyLoggerImplementation) {
-            handler = new LegacyRollingFileHandler(logPath, maxHistory, maxFileSize.toBytes(), format);
+            handler = new LegacyRollingFileHandler(logPath, maxHistory, maxFileSize.toBytes(), formatter);
         }
         else {
-            handler = createRollingFileHandler(logPath, maxFileSize, maxTotalSize, compressionType, format.getFormatter());
+            handler = createRollingFileHandler(logPath, maxFileSize, maxTotalSize, compressionType, formatter);
         }
         ROOT.addHandler(handler);
     }
 
-    private void logToSocket(String logPath, Format format)
+    private void logToSocket(String logPath, Formatter formatter)
     {
         if (!logPath.startsWith("tcp://") || logPath.lastIndexOf("/") > 6) {
             throw new IllegalArgumentException("LogPath for sockets must begin with tcp:// and not contain any path component.");
         }
         HostAndPort hostAndPort = HostAndPort.fromString(logPath.replace("tcp://", ""));
-        Handler handler = createSocketHandler(hostAndPort, format.getFormatter());
+        Handler handler = createSocketHandler(hostAndPort, formatter);
         ROOT.addHandler(handler);
     }
 
@@ -203,10 +213,20 @@ public class Logging
     }
 
     public void configure(LoggingConfiguration config)
+            throws IOException
     {
+        Map<String, String> systemContext = ImmutableMap.of();
+        if (config.getAdditionalFieldsFile() != null) {
+            Properties properties = new Properties();
+            try (InputStream inputStream = new FileInputStream(new File(config.getAdditionalFieldsFile()))) {
+                properties.load(inputStream);
+            }
+            systemContext = replaceEnvironmentVariables(Maps.fromProperties(properties));
+        }
+
         if (config.getLogPath() != null) {
             if (config.getLogPath().startsWith("tcp://")) {
-                logToSocket(config.getLogPath(), config.getFormat());
+                logToSocket(config.getLogPath(), config.getFormat().createFormatter(systemContext));
             }
             else {
                 logToFile(
@@ -216,7 +236,7 @@ public class Logging
                         config.getMaxSize(),
                         config.getMaxTotalSize(),
                         config.getCompression(),
-                        config.getFormat());
+                        config.getFormat().createFormatter(systemContext));
             }
         }
 
@@ -232,5 +252,31 @@ public class Logging
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    private static Map<String, String> replaceEnvironmentVariables(
+            Map<String, String> properties)
+    {
+        ArrayList<String> errors = new ArrayList<>();
+        Map<String, String> replaced = new HashMap<>();
+        properties.forEach((propertyKey, propertyValue) -> {
+            StringBuilder replacedPropertyValue = new StringBuilder();
+            Matcher matcher = ENV_PATTERN.matcher(propertyValue);
+            while (matcher.find()) {
+                String envName = matcher.group(1);
+                String envValue = System.getenv().get(envName);
+                if (envValue == null) {
+                    errors.add(format("Configuration property '%s' references unset environment variable '%s'", propertyKey, envName));
+                    return;
+                }
+                matcher.appendReplacement(replacedPropertyValue, quoteReplacement(envValue));
+            }
+            matcher.appendTail(replacedPropertyValue);
+            replaced.put(propertyKey, replacedPropertyValue.toString());
+        });
+        if (errors.size() > 0) {
+            throw new RuntimeException("Environment variables were referenced in configuration properties for system logging context, but unused:\n" + Joiner.on("\n").join(errors));
+        }
+        return replaced;
     }
 }

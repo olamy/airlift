@@ -9,7 +9,8 @@ import io.airlift.json.ObjectMapperProvider;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.logging.Formatter;
+import java.time.Instant;
+import java.util.Map;
 import java.util.logging.LogRecord;
 
 public class JsonFormatter
@@ -17,6 +18,23 @@ public class JsonFormatter
 {
     private static final JsonCodec<JsonRecord> CODEC = new JsonCodecFactory(new ObjectMapperProvider()).jsonCodec(JsonRecord.class);
     private static final JsonFactory jsonFactory = new JsonFactory();
+
+    JsonFormatter(Map<String, String> systemContext)
+    {
+        super(systemContext);
+    }
+
+    @Override
+    public String getSystemContextSummary()
+    {
+        return toString(new JsonRecord(Instant.now(),
+                Level.DEBUG,
+                Thread.currentThread().getName(),
+                this.getClass().getCanonicalName(),
+                "System Context Summary",
+                null,
+                getSystemContext()));
+    }
 
     @Override
     public String format(LogRecord record)
@@ -27,20 +45,22 @@ public class JsonFormatter
                 Thread.currentThread().getName(),
                 record.getLoggerName(),
                 record.getMessage(),
-                record.getThrown());
+                record.getThrown(),
+                getSystemContext());
 
         try {
-            return new StringWriter().append(CODEC.toJson(jsonRecord)).append("\n").toString();
+            return toString(jsonRecord);
         }
         catch (IllegalArgumentException outer) {
             try {
-                return new StringWriter().append(CODEC.toJson(new JsonRecord(
+                return toString(new JsonRecord(
                         record.getInstant(),
                         Level.fromJulLevel(record.getLevel()),
                         Thread.currentThread().getName(),
                         record.getLoggerName(),
                         outer.getMessage(),
-                        outer))).append("\n").toString();
+                        outer,
+                        getSystemContext()));
             }
             catch (IllegalArgumentException inner) {
                 inner.addSuppressed(outer);
@@ -71,5 +91,10 @@ public class JsonFormatter
             throw new RuntimeException("Unable to generate json logs", e);
         }
         return stringWriter.append("\n").toString();
+    }
+
+    private static String toString(JsonRecord jsonRecord)
+    {
+        return new StringWriter().append(CODEC.toJson(jsonRecord)).append("\n").toString();
     }
 }

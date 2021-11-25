@@ -39,11 +39,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.ErrorManager;
-import java.util.logging.Formatter;
 import java.util.zip.GZIPOutputStream;
 
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.lang.Math.toIntExact;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
 import static java.util.Objects.requireNonNull;
@@ -82,6 +82,7 @@ final class RollingFileMessageOutput
     private final Path symlink;
     private final long maxFileSize;
     private final CompressionType compressionType;
+    private final Formatter formatter;
 
     @GuardedBy("this")
     private Path currentOutputFile;
@@ -103,21 +104,23 @@ final class RollingFileMessageOutput
             CompressionType compressionType,
             Formatter formatter)
     {
-        RollingFileMessageOutput output = new RollingFileMessageOutput(filename, maxFileSize, maxTotalSize, compressionType);
+        RollingFileMessageOutput output = new RollingFileMessageOutput(filename, maxFileSize, maxTotalSize, compressionType, formatter);
         BufferedHandler handler = new BufferedHandler(output, formatter);
         handler.start();
         return handler;
     }
 
-    private RollingFileMessageOutput(String filename, DataSize maxFileSize, DataSize maxTotalSize, CompressionType compressionType)
+    private RollingFileMessageOutput(String filename, DataSize maxFileSize, DataSize maxTotalSize, CompressionType compressionType, Formatter formatter)
     {
         requireNonNull(filename, "filename is null");
         requireNonNull(maxFileSize, "maxFileSize is null");
         requireNonNull(maxTotalSize, "maxTotalSize is null");
         requireNonNull(compressionType, "compressionType is null");
+        requireNonNull(formatter, "formatter is null");
 
         this.maxFileSize = maxFileSize.toBytes();
         this.compressionType = compressionType;
+        this.formatter = formatter;
 
         symlink = Paths.get(filename);
 
@@ -300,6 +303,8 @@ final class RollingFileMessageOutput
                 });
             }
         }
+
+        newOutputStream.write(formatter.getSystemContextSummary().getBytes(UTF_8));
 
         currentOutputFile = newFile;
         currentOutputFileName = newFileName;
